@@ -9,6 +9,8 @@ import Data.Conduit.Binary (sinkLbs)
 import Data.String (fromString)
 import Control.Monad.Trans.Resource (MonadResource)
 import Data.Aeson
+import System.FilePath.Posix (splitFileName)
+import Network.HTTP.Client.MultipartFormData
 
 import Koofr.Class
 import Koofr.Mount (mountsMounts)
@@ -22,12 +24,14 @@ data Client = Client { clientHost :: String
 runClient :: (MonadResource m) => ReaderT Client m a -> Client -> m a
 runClient = runReaderT
 
+tokenHeader token = ("Authorization", fromString $ "Token token=" ++ token)
+
 clientRequest method path body = do
   Client host token manager <- ask
   req'' <- parseUrl $ host ++ path
   let contentType = maybe [] (const [("Content-Type", "application/json")]) body
       req' = req'' { method = method
-                   , requestHeaders = ("Authorization", fromString $ "Token token="++token) : contentType
+                   , requestHeaders = tokenHeader token : contentType
                    }
       req = maybe req' (\b -> req' { requestBody = RequestBodyLBS $ encode b }) body
   http req manager
@@ -42,9 +46,9 @@ consumeJSON response = do
   return res  
 
 type Download m = Response (ResumableSource m ByteString) 
-type Upload m = ()
+type Upload = Part
 
-instance (MonadResource m, MonadReader Client m) => MonadKoofr (Download m) (Upload m) m where
+instance (MonadResource m, MonadReader Client m) => MonadKoofr (Download m) Upload m where
   mounts = do 
     resp <- clientRequest methodGet "/api/v2/mounts" noJSON
     mountsMounts `liftM` consumeJSON resp
@@ -105,5 +109,12 @@ instance (MonadResource m, MonadReader Client m) => MonadKoofr (Download m) (Upl
                   noJSON
 
 
-  filesUpload  mountid  path upload = undefined -- m ()
-
+  filesUpload mountId path part = do
+    Client host token manager <- ask
+    let (dirname, fileName) = splitFileName path
+        url = "/content/api/v2/mounts/" ++ mountId ++ "/files/put?path=" ++ dirname ++ "&filename=" ++ fileName
+    req'' <- parseUrl $ host ++ url
+    let req' = req'' { requestHeaders = [tokenHeader token] }
+    req <- formDataBody [part] req'
+    http req manager
+    return ()
