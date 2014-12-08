@@ -20,6 +20,7 @@ library
                        Koofr.Client
                        Koofr.Mount
                        Koofr.File
+                       Koofr.Internal
   build-depends:       base                  >= 4.7  && <4.8
                      , mtl                   >= 2.2  && <2.3
                      , http-client           >= 0.4  && <0.5
@@ -37,3 +38,6 @@ library
                        OverloadedStrings
                        TemplateHaskell
 
+source-repository head
+  type:     git
+  location: https://github.com/edofic/koofr-api-hs.git
