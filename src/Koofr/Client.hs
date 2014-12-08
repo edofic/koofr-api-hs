@@ -1,4 +1,9 @@
-module Koofr.Client where
+module Koofr.Client
+( Client(..)
+, runClient
+, Download
+, Upload
+) where
 
 import Control.Monad.Reader
 import Network.HTTP.Client 
