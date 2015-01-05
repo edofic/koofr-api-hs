@@ -1,28 +1,37 @@
 module Koofr.Client
-( Client(..)
-, runClient
-, Download
-, Upload
+( Client(..) , runClient
+, Download , Upload
+, Name, path
 , createNewAuthToken
 , createDefaultManager
+, mounts
+, mountInfo
+, filesInfo
+, filesList
+, filesNewFolder
+, filesRemove
+, filesRename
+, filesCopy
+, filesMove
+, filesDownload
+, filesUpload
 ) where
 
-import Control.Monad.Reader
-import Network.HTTP.Client 
-import Network.HTTP.Types.Method
-import Network.HTTP.Client.TLS (tlsManagerSettings)
-import Data.ByteString (ByteString)
+import           Data.Aeson
+import           Data.Aeson.Types (parseMaybe)
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
-import Data.String (fromString)
-import Data.Aeson
-import Data.Aeson.Types (parseMaybe)
-import Data.Maybe (fromJust)
-import System.FilePath.Posix (splitFileName)
-import Network.HTTP.Client.MultipartFormData
+import           Data.Maybe (fromJust)
+import           Data.String (fromString)
+import           Control.Monad.Reader
+import           Network.HTTP.Client 
+import           Network.HTTP.Client.MultipartFormData
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
+import           Network.HTTP.Types.Method
+import           System.FilePath.Posix (splitFileName)
 
-import Koofr.Class
-import Koofr.Mount (mountsMounts)
-import Koofr.File (fileListFiles)
+import Koofr.Mount 
+import Koofr.File 
 
 type Host = String
 data Client = Client { clientHost :: Host
@@ -70,77 +79,89 @@ createDefaultManager = newManager tlsManagerSettings
 
 type Download = (IO ByteString, IO ()) 
 type Upload = Part
-
-instance (MonadIO m, MonadReader Client m) => MonadKoofr Download Upload m where
-  mounts = do 
-    resp <- clientRequest methodGet "/api/v2/mounts" noJSON
-    liftIO $ mountsMounts `liftM` consumeJSON resp
-
-  mountInfo mountId = do 
-    resp <- clientRequest methodGet ("/api/v2/mounts/" ++ mountId) noJSON
-    consumeJSON resp
+type Name = String
+type Path = String 
 
 
-  filesInfo mountId path = do 
-    resp <- clientRequest methodGet ("/api/v2/mounts/" ++ mountId ++ "/files/info?path=" ++ path)
-                  noJSON
-    consumeJSON resp
+mounts :: (MonadIO m, MonadReader Client m) =>  m [Mount]
+mounts = do 
+  resp <- clientRequest methodGet "/api/v2/mounts" noJSON
+  liftIO $ mountsMounts `liftM` consumeJSON resp
 
-  filesList mountId path = do 
-    resp <- clientRequest methodGet ("/api/v2/mounts/" ++ mountId ++ "/files/list?path=" ++ path)
-                  noJSON
-    fileListFiles `liftM` consumeJSON resp
-  
-  filesNewFolder mountId path name = do
-    clientRequest methodPost 
-                  ("/api/v2/mounts/" ++ mountId ++ "/files/folder?path=" ++ path)
-                  (Just $ object [("name", fromString name)])
-    return ()
+mountInfo :: (MonadIO m, MonadReader Client m) =>  MountId -> m Mount
+mountInfo mountId = do 
+  resp <- clientRequest methodGet ("/api/v2/mounts/" ++ mountId) noJSON
+  consumeJSON resp
 
-  filesRemove mountId path = do
-    clientRequest methodDelete
-                  ("/api/v2/mounts/" ++ mountId ++ "/files/remove?path=" ++ path)
-                  noJSON
-    return ()
+filesInfo :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> m File
+filesInfo mountId path = do 
+  resp <- clientRequest methodGet ("/api/v2/mounts/" ++ mountId ++ "/files/info?path=" ++ path)
+                noJSON
+  consumeJSON resp
 
-  filesRename mountId path name = do
-    clientRequest methodPut
-                  ("/api/v2/mounts/" ++ mountId ++ "/files/rename?path=" ++ path)
-                  (Just $ object [("name", fromString name)])
-    return ()
+filesList :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> m [File]
+filesList mountId path = do 
+  resp <- clientRequest methodGet ("/api/v2/mounts/" ++ mountId ++ "/files/list?path=" ++ path)
+                noJSON
+  fileListFiles `liftM` consumeJSON resp
 
-  filesCopy mountId path mountId' path' = do
-    clientRequest methodPut
-                  ("/api/v2/mounts/" ++ mountId ++ "/files/copy?path=" ++ path)
-                  (Just $ object [ ("toMountId", fromString mountId')
-                                 , ("toPath", fromString path')
-                                 ])
-    return ()
+filesNewFolder :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> Name -> m ()
+filesNewFolder mountId path name = do
+  clientRequest methodPost 
+                ("/api/v2/mounts/" ++ mountId ++ "/files/folder?path=" ++ path)
+                (Just $ object [("name", fromString name)])
+  return ()
 
-  filesMove mountId path mountId' path' = do
-    clientRequest methodPut
-                  ("/api/v2/mounts/" ++ mountId ++ "/files/move?path=" ++ path)
-                  (Just $ object [ ("toMountId", fromString mountId')
-                                 , ("toPath", fromString path')
-                                 ])
-    return ()
-  
+filesRemove :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> m ()
+filesRemove mountId path = do
+  clientRequest methodDelete
+                ("/api/v2/mounts/" ++ mountId ++ "/files/remove?path=" ++ path)
+                noJSON
+  return ()
 
-  filesDownload mountId path = do
-    res <- clientRequest methodGet
-                  ("/content/api/v2/mounts/" ++ mountId ++ "/files/get?path=" ++ path)
-                  noJSON
-    return (responseBody res, responseClose res)                  
+filesRename :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> Name -> m ()
+filesRename mountId path name = do
+  clientRequest methodPut
+                ("/api/v2/mounts/" ++ mountId ++ "/files/rename?path=" ++ path)
+                (Just $ object [("name", fromString name)])
+  return ()
 
-  filesUpload mountId path part = do
-    Client host token manager <- ask
-    let (dirname, fileName) = splitFileName path
-        url = "/content/api/v2/mounts/" ++ mountId ++ "/files/put?path=" ++ dirname ++ "&filename=" ++ fileName
-    req'' <- liftIO $ parseUrl $ host ++ url
-    let req' = req'' { requestHeaders = [tokenHeader token] }
-        part' = part { partName = "file"
-                     , partFilename = Just fileName 
-                     }
-    req <- formDataBody [part'] req'
-    liftIO $ httpNoBody req manager
-    return ()
+filesCopy :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> MountId -> Path -> m ()
+filesCopy mountId path mountId' path' = do
+  clientRequest methodPut
+                ("/api/v2/mounts/" ++ mountId ++ "/files/copy?path=" ++ path)
+                (Just $ object [ ("toMountId", fromString mountId')
+                               , ("toPath", fromString path')
+                               ])
+  return ()
+
+filesMove :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> MountId -> Path -> m ()
+filesMove mountId path mountId' path' = do
+  clientRequest methodPut
+                ("/api/v2/mounts/" ++ mountId ++ "/files/move?path=" ++ path)
+                (Just $ object [ ("toMountId", fromString mountId')
+                               , ("toPath", fromString path')
+                               ])
+  return ()
+
+
+filesDownload :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> m Download
+filesDownload mountId path = do
+  res <- clientRequest methodGet
+                ("/content/api/v2/mounts/" ++ mountId ++ "/files/get?path=" ++ path)
+                noJSON
+  return (responseBody res, responseClose res)                  
+
+filesUpload :: (MonadIO m, MonadReader Client m) =>  MountId -> Path -> Upload -> m ()
+filesUpload mountId path part = do
+  Client host token manager <- ask
+  let (dirname, fileName) = splitFileName path
+      url = "/content/api/v2/mounts/" ++ mountId ++ "/files/put?path=" ++ dirname ++ "&filename=" ++ fileName
+  req'' <- liftIO $ parseUrl $ host ++ url
+  let req' = req'' { requestHeaders = [tokenHeader token] }
+      part' = part { partName = "file"
+                   , partFilename = Just fileName 
+                   }
+  req <- formDataBody [part'] req'
+  liftIO $ httpNoBody req manager
+  return ()

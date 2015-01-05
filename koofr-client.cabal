@@ -1,5 +1,5 @@
 name:                koofr-client
-version:             0.1.1.0
+version:             1.0.0.0
 synopsis:            Client to Koofr API
 homepage:            https://github.com/edofic/koofr-api-hs                       
 description:         
@@ -16,11 +16,10 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Koofr.Class
-                       Koofr.Client
+  exposed-modules:     Koofr.Client
                        Koofr.Mount
                        Koofr.File
-                       Koofr.Internal
+  other-modules:       Koofr.Internal
   build-depends:       base                  >= 4.7  && <4.8
                      , mtl                   >= 2.2  && <2.3
                      , http-client           >= 0.4  && <0.5
