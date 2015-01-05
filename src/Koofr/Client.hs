@@ -3,15 +3,19 @@ module Koofr.Client
 , runClient
 , Download
 , Upload
+, createNewAuthToken
+, createDefaultManager
 ) where
 
 import Control.Monad.Reader
 import Network.HTTP.Client 
 import Network.HTTP.Types.Method
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.String (fromString)
 import Data.Aeson
+import Data.Aeson.Types (parseMaybe)
 import Data.Maybe (fromJust)
 import System.FilePath.Posix (splitFileName)
 import Network.HTTP.Client.MultipartFormData
@@ -20,7 +24,8 @@ import Koofr.Class
 import Koofr.Mount (mountsMounts)
 import Koofr.File (fileListFiles)
 
-data Client = Client { clientHost :: String
+type Host = String
+data Client = Client { clientHost :: Host
                      , clientToken :: String
                      , clientManager :: Manager
                      } 
@@ -48,6 +53,20 @@ consumeJSON response = liftIO $
   do lbs <- brConsume (responseBody response)
      responseClose response
      return $ fromJust $ decode $ L.fromChunks lbs
+
+createNewAuthToken :: Manager -> Host -> String -> String -> IO (Maybe String)
+createNewAuthToken manager host email password = do
+  req' <- parseUrl $ host ++ "/token"
+  let req = req' { method = methodPost
+                 , requestHeaders = ("Content-Type", "application/json") : requestHeaders req'
+                 , requestBody = RequestBodyLBS $ encode b 
+                 }
+      b   = object [("email", fromString email), ("password", fromString password)]
+  res <- httpLbs req manager
+  return $ decode (responseBody res) >>= parseMaybe (.: "token")
+
+createDefaultManager :: IO Manager 
+createDefaultManager = newManager tlsManagerSettings
 
 type Download = (IO ByteString, IO ()) 
 type Upload = Part

@@ -1,5 +1,5 @@
 name:                koofr-client
-version:             0.1.0.0
+version:             0.1.1.0
 synopsis:            Client to Koofr API
 homepage:            https://github.com/edofic/koofr-api-hs                       
 description:         
