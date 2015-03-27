@@ -1,5 +1,5 @@
 name:                koofr-client
-version:             1.0.0.2
+version:             1.0.0.3
 synopsis:            Client to Koofr API
 homepage:            https://github.com/edofic/koofr-api-hs                       
 description:         
@@ -20,14 +20,14 @@ library
                        Koofr.Mount
                        Koofr.File
   other-modules:       Koofr.Internal
-  build-depends:       base                  >= 4.7  && <4.9
-                     , mtl                   >= 2.1  && <2.3
-                     , http-client           >= 0.4  && <0.5
-                     , http-types            >= 0.8  && <0.9
-                     , http-client-tls       >= 0.2  && <0.3
-                     , bytestring            >= 0.10 && <0.11
-                     , aeson                 >= 0.8  && <0.9
-                     , filepath              >= 1.3  && <1.5
+  build-depends:       base                  >= 4.7  && <5  
+                     , mtl                   >= 2.1  && <3
+                     , http-client           >= 0.4  && <1
+                     , http-types            >= 0.8  && <1
+                     , http-client-tls       >= 0.2  && <1
+                     , bytestring            >= 0.10 && <1
+                     , aeson                 >= 0.8  && <1
+                     , filepath              >= 1.3  && <2
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:  MultiParamTypeClasses
